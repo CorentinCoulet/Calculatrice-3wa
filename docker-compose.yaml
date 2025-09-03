@@ -1,0 +1,37 @@
+services:
+  calculatrice-app:
+    build: .
+    container_name: calculatrice-app
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+    volumes:
+      - ./public:/app/public:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Service pour exécuter les tests (optionnel, pour CI/CD)
+  calculatrice-test:
+    build: 
+      context: .
+      target: test
+    container_name: calculatrice-test
+    command: npm test
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=test
+    profiles:
+      - test
+
+networks:
+  default:
+    name: calculatrice-network

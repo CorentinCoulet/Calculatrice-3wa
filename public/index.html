@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculatrice Addition</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="calculatrice">
+            <h1>Calculatrice d'Addition</h1>
+            
+            <div class="ecran">
+                <input 
+                    type="text" 
+                    id="expression" 
+                    class="input-expression" 
+                    placeholder="Ex: 12 + 34"
+                    autocomplete="off"
+                >
+                <div class="resultat" id="resultat">0</div>
+            </div>
+            
+            <div class="clavier">
+                <div class="clavier-grille">
+                    <button class="btn-num" data-value="7">7</button>
+                    <button class="btn-num" data-value="8">8</button>
+                    <button class="btn-num" data-value="9">9</button>
+                    <button class="btn-effacer" id="btnEffacer">C</button>
+                    
+                    <button class="btn-num" data-value="4">4</button>
+                    <button class="btn-num" data-value="5">5</button>
+                    <button class="btn-num" data-value="6">6</button>
+                    <button class="btn-retour" id="btnRetour">←</button>
+                    
+                    <button class="btn-num" data-value="1">1</button>
+                    <button class="btn-num" data-value="2">2</button>
+                    <button class="btn-num" data-value="3">3</button>
+                    <button class="btn-op" data-value="+">+</button>
+                    
+                    <button class="btn-num btn-zero" data-value="0">0</button>
+                    <button class="btn-num" data-value=".">.</button>
+                    <button class="btn-calculer" id="btnCalculer">=</button>
+                </div>
+            </div>
+            
+            <div class="historique" id="historique">
+                <h3>Historique</h3>
+                <div class="historique-liste" id="historiqueList"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>
