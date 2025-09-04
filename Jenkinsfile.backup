@@ -1,10 +1,13 @@
 pipeline {
     agent any
     
+    tools {
+        nodejs 'NodeJS-18'
+    }
+    
     environment {
         // Variables d'environnement
         NODE_ENV = 'test'
-        PATH = "${env.PATH};C:\\Program Files\\nodejs"
     }
     
     stages {
@@ -72,12 +75,19 @@ pipeline {
             steps {
                 echo 'Vérification de la qualité du code...'
                 script {
-                    // Version simplifiée de vérification de couverture
-                    if (fileExists('coverage/lcov-report/index.html')) {
-                        echo "✅ Rapport de couverture généré avec succès"
-                    } else {
-                        echo "⚠️  Pas de rapport de couverture trouvé"
+                    // Vérifier la couverture de tests (seuil minimum)
+                    def coverage = bat(
+                        script: "@echo off & findstr /R \"Lines.*%\" coverage\\lcov-report\\index.html | head -1 | findstr /R \"[0-9]*\\.[0-9]*\" || echo 0",
+                        returnStdout: true
+                    ).trim()
+                    
+                    echo "Couverture de code : ${coverage}%"
+                    
+                    if (coverage.toFloat() < 80) {
+                        echo "⚠️  Couverture de code insuffisante : ${coverage}% (minimum : 80%)"
                         currentBuild.result = 'UNSTABLE'
+                    } else {
+                        echo "✅ Couverture de code satisfaisante : ${coverage}%"
                     }
                 }
             }
@@ -111,6 +121,7 @@ pipeline {
         }
         success {
             echo '✅ Pipeline exécuté avec succès !'
+            // Notification possible (Slack, email, etc.)
         }
         failure {
             echo '❌ Pipeline échoué !'
