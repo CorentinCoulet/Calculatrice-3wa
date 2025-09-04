@@ -1,5 +1,10 @@
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'node:18-alpine'
+            args '-v /var/run/docker.sock:/var/run/docker.sock'
+        }
+    }
     
     environment {
         // Variables d'environnement
@@ -19,30 +24,13 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 echo 'Installation des dépendances Node.js...'
-                script {
-                    if (isUnix()) {
-                        // Vérifier si Node.js est disponible
-                        sh '''
-                            if command -v node >/dev/null 2>&1; then
-                                echo "Node.js est déjà installé"
-                                node --version
-                                npm --version
-                            else
-                                echo "Installation de Node.js via package manager"
-                                curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-                                sudo apt-get install -y nodejs
-                            fi
-                        '''
-                        sh 'npm ci'
-                    } else {
-                        bat '''
-                            echo "Vérification de Node.js..."
-                            node --version || echo "Node.js n'est pas installé"
-                            npm --version || echo "npm n'est pas installé"
-                        '''
-                        bat 'npm ci'
-                    }
-                }
+                sh '''
+                    echo "Vérification de Node.js..."
+                    node --version
+                    npm --version
+                    echo "Installation des dépendances..."
+                    npm ci
+                '''
             }
         }
         
@@ -58,13 +46,7 @@ pipeline {
         stage('Run Tests') {
             steps {
                 echo 'Exécution des tests...'
-                script {
-                    if (isUnix()) {
-                        sh 'npm test'
-                    } else {
-                        bat 'npm test'
-                    }
-                }
+                sh 'npm test'
             }
             post {
                 always {
@@ -86,13 +68,7 @@ pipeline {
         stage('Test Coverage') {
             steps {
                 echo 'Génération du rapport de couverture...'
-                script {
-                    if (isUnix()) {
-                        sh 'npm run test:coverage'
-                    } else {
-                        bat 'npm run test:coverage'
-                    }
-                }
+                sh 'npm run test:coverage'
             }
             post {
                 always {
@@ -116,16 +92,13 @@ pipeline {
         }
         
         stage('Build Docker Image') {
+            agent any // Retourner à l'agent Jenkins principal pour Docker
             when {
                 // Seulement si Docker est disponible
                 expression { 
                     script {
                         try {
-                            if (isUnix()) {
-                                sh 'which docker'
-                            } else {
-                                bat 'where docker'
-                            }
+                            sh 'which docker'
                             return true
                         } catch (Exception e) {
                             echo "Docker non disponible, étape ignorée"
@@ -136,19 +109,10 @@ pipeline {
             }
             steps {
                 echo 'Construction de l\'image Docker...'
-                script {
-                    if (isUnix()) {
-                        sh """
-                            docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} .
-                            docker build -t ${DOCKER_IMAGE}:latest .
-                        """
-                    } else {
-                        bat """
-                            docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} .
-                            docker build -t ${DOCKER_IMAGE}:latest .
-                        """
-                    }
-                }
+                sh """
+                    docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} .
+                    docker build -t ${DOCKER_IMAGE}:latest .
+                """
             }
         }
         
@@ -162,47 +126,31 @@ pipeline {
         }
         
         stage('Deploy to Test') {
+            agent any // Retourner à l'agent Jenkins principal pour Docker
             when {
                 branch 'develop'
             }
             steps {
                 echo 'Déploiement en environnement de test...'
-                script {
-                    if (isUnix()) {
-                        sh """
-                            docker-compose -f docker-compose.yaml down || true
-                            docker-compose -f docker-compose.yaml up -d
-                        """
-                    } else {
-                        bat """
-                            docker-compose -f docker-compose.yaml down
-                            docker-compose -f docker-compose.yaml up -d
-                        """
-                    }
-                }
+                sh """
+                    docker-compose -f docker-compose.yaml down || true
+                    docker-compose -f docker-compose.yaml up -d
+                """
             }
         }
         
         stage('Deploy to Production') {
+            agent any // Retourner à l'agent Jenkins principal pour Docker
             when {
                 branch 'main'
             }
             steps {
                 echo 'Déploiement en production...'
                 input message: 'Déployer en production ?', ok: 'Déployer'
-                script {
-                    if (isUnix()) {
-                        sh """
-                            docker-compose -f docker-compose.yaml down || true
-                            docker-compose -f docker-compose.yaml up -d
-                        """
-                    } else {
-                        bat """
-                            docker-compose -f docker-compose.yaml down
-                            docker-compose -f docker-compose.yaml up -d
-                        """
-                    }
-                }
+                sh """
+                    docker-compose -f docker-compose.yaml down || true
+                    docker-compose -f docker-compose.yaml up -d
+                """
             }
         }
     }
@@ -213,11 +161,7 @@ pipeline {
             script {
                 // Nettoyage Docker seulement si Docker est disponible
                 try {
-                    if (isUnix()) {
-                        sh 'docker --version && docker system prune -f || echo "Docker non disponible, skip nettoyage"'
-                    } else {
-                        bat 'docker --version && docker system prune -f || echo "Docker non disponible, skip nettoyage"'
-                    }
+                    sh 'docker --version && docker system prune -f || echo "Docker non disponible, skip nettoyage"'
                 } catch (Exception e) {
                     echo "Docker non disponible pour le nettoyage: ${e.getMessage()}"
                 }
