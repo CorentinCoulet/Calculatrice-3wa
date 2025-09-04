@@ -1,84 +1,46 @@
 pipeline {
     agent any
     
+    tools {
+        nodejs 'NodeJS-18'
+    }
+    
     environment {
         // Variables d'environnement
-        NODE_VERSION = '18'
-        DOCKER_IMAGE = 'calculatrice-app'
-        DOCKER_TAG = "${BUILD_NUMBER}"
+        NODE_ENV = 'test'
     }
     
     stages {
-        stage('Checkout') {
+        stage('🔍 Checkout') {
             steps {
                 echo 'Récupération du code source...'
                 checkout scm
             }
         }
         
-        stage('Install Dependencies') {
+        stage('📦 Install Dependencies') {
             steps {
-                echo 'Vérification de l\'environnement...'
-                script {
-                    // Vérifier si Node.js est disponible
-                    try {
-                        sh 'node --version'
-                        sh 'npm --version'
-                        echo 'Node.js est disponible, installation des dépendances...'
-                        sh 'npm ci'
-                    } catch (Exception e) {
-                        echo "Node.js non disponible: ${e.getMessage()}"
-                        echo "Installation des dépendances ignorée"
-                        currentBuild.result = 'UNSTABLE'
-                    }
-                }
+                echo 'Installation des dépendances Node.js...'
+                sh '''
+                    echo "Versions installées :"
+                    node --version
+                    npm --version
+                    echo ""
+                    echo "Installation des dépendances..."
+                    npm ci
+                '''
             }
         }
         
-        stage('Lint & Code Quality') {
+        stage('🧪 Run Tests') {
             steps {
-                echo 'Vérification de la qualité du code...'
-                script {
-                    echo 'Étape de linting à configurer'
-                }
-            }
-        }
-        
-        stage('Run Tests') {
-            when {
-                expression {
-                    script {
-                        try {
-                            sh 'node --version'
-                            return true
-                        } catch (Exception e) {
-                            echo "Node.js non disponible, tests ignorés"
-                            return false
-                        }
-                    }
-                }
-            }
-            steps {
-                echo 'Exécution des tests...'
-                script {
-                    try {
-                        sh 'npm test'
-                    } catch (Exception e) {
-                        echo "Erreur lors des tests: ${e.getMessage()}"
-                        currentBuild.result = 'UNSTABLE'
-                    }
-                }
+                echo 'Exécution des tests unitaires...'
+                sh 'npm test'
             }
             post {
                 always {
                     // Publier les résultats des tests JUnit
-                    script {
-                        if (fileExists('test-results/junit.xml')) {
-                            publishTestResults testResultsPattern: 'test-results/junit.xml'
-                        } else {
-                            echo 'Aucun fichier de résultats de tests trouvé'
-                        }
-                    }
+                    publishTestResults testResultsPattern: 'test-results/junit.xml'
                     
                     // Archiver les rapports de tests
                     archiveArtifacts artifacts: 'test-results/**/*', allowEmptyArchive: true
@@ -86,183 +48,87 @@ pipeline {
             }
         }
         
-        stage('Test Coverage') {
-            when {
-                expression {
-                    script {
-                        try {
-                            sh 'node --version'
-                            return true
-                        } catch (Exception e) {
-                            echo "Node.js non disponible, couverture ignorée"
-                            return false
-                        }
-                    }
-                }
-            }
+        stage('📊 Test Coverage') {
             steps {
                 echo 'Génération du rapport de couverture...'
-                script {
-                    try {
-                        sh 'npm run test:coverage'
-                    } catch (Exception e) {
-                        echo "Erreur lors de la génération de couverture: ${e.getMessage()}"
-                        currentBuild.result = 'UNSTABLE'
-                    }
-                }
+                sh 'npm run test:coverage'
             }
             post {
                 always {
-                    // Publier le rapport de couverture
-                    script {
-                        if (fileExists('coverage/lcov-report/index.html')) {
-                            publishHTML([
-                                allowMissing: false,
-                                alwaysLinkToLastBuild: true,
-                                keepAll: true,
-                                reportDir: 'coverage/lcov-report',
-                                reportFiles: 'index.html',
-                                reportName: 'Coverage Report'
-                            ])
-                        } else {
-                            echo 'Aucun rapport de couverture trouvé'
-                        }
-                    }
+                    // Publier le rapport de couverture HTML
+                    publishHTML([
+                        allowMissing: false,
+                        alwaysLinkToLastBuild: true,
+                        keepAll: true,
+                        reportDir: 'coverage/lcov-report',
+                        reportFiles: 'index.html',
+                        reportName: 'Coverage Report'
+                    ])
+                    
+                    // Archiver les rapports de couverture
+                    archiveArtifacts artifacts: 'coverage/**/*', allowEmptyArchive: true
                 }
             }
         }
         
-        stage('Build Docker Image') {
-            agent any // Retourner à l'agent Jenkins principal pour Docker
-            when {
-                // Seulement si Docker est disponible
-                expression { 
-                    script {
-                        try {
-                            sh 'docker --version'
-                            return true
-                        } catch (Exception e) {
-                            echo "Docker non disponible, étape ignorée"
-                            return false
-                        }
-                    }
-                }
-            }
+        stage('🔍 Code Quality') {
             steps {
-                echo 'Construction de l\'image Docker...'
+                echo 'Vérification de la qualité du code...'
                 script {
-                    try {
-                        sh """
-                            docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} .
-                            docker build -t ${DOCKER_IMAGE}:latest .
-                        """
-                    } catch (Exception e) {
-                        echo "Erreur lors de la construction Docker: ${e.getMessage()}"
+                    // Vérifier la couverture de tests (seuil minimum)
+                    def coverage = sh(
+                        script: "grep -o 'Lines.*%' coverage/lcov-report/index.html | head -1 | grep -o '[0-9]*\\.[0-9]*' || echo '0'",
+                        returnStdout: true
+                    ).trim()
+                    
+                    echo "Couverture de code : ${coverage}%"
+                    
+                    if (coverage.toFloat() < 80) {
+                        echo "⚠️  Couverture de code insuffisante : ${coverage}% (minimum : 80%)"
                         currentBuild.result = 'UNSTABLE'
+                    } else {
+                        echo "✅ Couverture de code satisfaisante : ${coverage}%"
                     }
                 }
             }
         }
         
-        stage('Security Scan') {
+        stage('🚀 Build Application') {
             steps {
-                echo 'Analyse de sécurité...'
-                script {
-                    echo 'Étape de scan de sécurité à configurer'
-                }
-            }
-        }
-        
-        stage('Deploy to Test') {
-            agent any // Retourner à l'agent Jenkins principal pour Docker
-            when {
-                allOf {
-                    branch 'develop'
-                    expression {
-                        script {
-                            try {
-                                sh 'docker --version'
-                                return true
-                            } catch (Exception e) {
-                                echo "Docker non disponible, déploiement ignoré"
-                                return false
-                            }
-                        }
-                    }
-                }
-            }
-            steps {
-                echo 'Déploiement en environnement de test...'
-                script {
-                    try {
-                        sh """
-                            docker-compose -f docker-compose.yaml down || true
-                            docker-compose -f docker-compose.yaml up -d
-                        """
-                    } catch (Exception e) {
-                        echo "Erreur lors du déploiement test: ${e.getMessage()}"
-                        currentBuild.result = 'UNSTABLE'
-                    }
-                }
-            }
-        }
-        
-        stage('Deploy to Production') {
-            agent any // Retourner à l'agent Jenkins principal pour Docker
-            when {
-                allOf {
-                    branch 'main'
-                    expression {
-                        script {
-                            try {
-                                sh 'docker --version'
-                                return true
-                            } catch (Exception e) {
-                                echo "Docker non disponible, déploiement ignoré"
-                                return false
-                            }
-                        }
-                    }
-                }
-            }
-            steps {
-                echo 'Déploiement en production...'
-                input message: 'Déployer en production ?', ok: 'Déployer'
-                script {
-                    try {
-                        sh """
-                            docker-compose -f docker-compose.yaml down || true
-                            docker-compose -f docker-compose.yaml up -d
-                        """
-                    } catch (Exception e) {
-                        echo "Erreur lors du déploiement production: ${e.getMessage()}"
-                        currentBuild.result = 'UNSTABLE'
-                    }
-                }
+                echo 'Construction de l\'application...'
+                sh '''
+                    echo "Vérification que l'application démarre..."
+                    timeout 10s npm start &
+                    PID=$!
+                    sleep 5
+                    if ps -p $PID > /dev/null; then
+                        echo "✅ Application démarre correctement"
+                        kill $PID
+                    else
+                        echo "❌ Erreur au démarrage de l'application"
+                        exit 1
+                    fi
+                '''
             }
         }
     }
     
     post {
         always {
-            echo 'Nettoyage...'
-            script {
-                // Nettoyage Docker seulement si Docker est disponible
-                try {
-                    sh 'docker --version > /dev/null 2>&1 && docker system prune -f || echo "Docker non disponible, skip nettoyage"'
-                } catch (Exception e) {
-                    echo "Docker non disponible pour le nettoyage: ${e.getMessage()}"
-                }
-            }
+            echo '🧹 Nettoyage du workspace...'
+            // Nettoyer les node_modules pour économiser l'espace
+            sh 'rm -rf node_modules || true'
         }
         success {
-            echo 'Pipeline exécuté avec succès ! ✅'
+            echo '✅ Pipeline exécuté avec succès !'
+            // Notification possible (Slack, email, etc.)
         }
         failure {
-            echo 'Pipeline échoué ! ❌'
+            echo '❌ Pipeline échoué !'
+            // Notification d'échec
         }
         unstable {
-            echo 'Pipeline instable ! ⚠️'
+            echo '⚠️  Pipeline instable (tests passés mais qualité insuffisante)'
         }
     }
 }
