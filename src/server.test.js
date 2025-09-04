@@ -1,6 +1,15 @@
 const request = require('supertest');
 const app = require('../server');
 
+// Messages d'erreur constants
+const ERROR_MESSAGES = {
+    INVALID_NUMBERS: 'Les paramètres doivent être des nombres valides',
+    NULL_VALUES: 'Les valeurs null ne sont pas acceptées',
+    MISSING_NUMBERS: 'Veuillez fournir deux nombres',
+    EMPTY_BODY: 'Corps de requête vide',
+    NULL_IN_ARRAY: 'Valeur null ou undefined détectée dans le tableau'
+};
+
 describe('API Calculatrice', () => {
     describe('GET /', () => {
         test('devrait retourner la page HTML', async () => {
@@ -63,24 +72,24 @@ describe('API Calculatrice', () => {
         });
 
         describe('Gestion des erreurs - nombres manquants', () => {
-            test('devrait retourner une erreur 400 si un nombre manque (nombre1)', async () => {
+            test('devrait retourner une erreur 400 si nombre1 manque', async () => {
                 const response = await request(app)
                     .post('/api/addition')
                     .send({ nombre2: 5 })
                     .expect(400);
 
                 expect(response.body).toHaveProperty('erreur');
-                expect(response.body.erreur).toBe('Veuillez fournir deux nombres');
+                expect(response.body.erreur).toBe(ERROR_MESSAGES.MISSING_NUMBERS);
             });
 
-            test('devrait retourner une erreur 400 si un nombre manque (nombre2)', async () => {
+            test('devrait retourner une erreur 400 si nombre2 manque', async () => {
                 const response = await request(app)
                     .post('/api/addition')
                     .send({ nombre1: 5 })
                     .expect(400);
 
                 expect(response.body).toHaveProperty('erreur');
-                expect(response.body.erreur).toBe('Veuillez fournir deux nombres');
+                expect(response.body.erreur).toBe(ERROR_MESSAGES.MISSING_NUMBERS);
             });
 
             test('devrait retourner une erreur 400 si aucun nombre n\'est fourni', async () => {
@@ -90,19 +99,19 @@ describe('API Calculatrice', () => {
                     .expect(400);
 
                 expect(response.body).toHaveProperty('erreur');
-                expect(response.body.erreur).toBe('Corps de requête vide');
+                expect(response.body.erreur).toBe(ERROR_MESSAGES.EMPTY_BODY);
             });
         });
 
         describe('Gestion des valeurs non numériques', () => {
-            test('devrait retourner une erreur 400 pour des valeurs non numériques', async () => {
+            test('devrait retourner une erreur 400 pour deux valeurs non numériques', async () => {
                 const response = await request(app)
                     .post('/api/addition')
                     .send({ nombre1: "abc", nombre2: "def" })
                     .expect(400);
 
                 expect(response.body).toHaveProperty('erreur');
-                expect(response.body.erreur).toBe('Les paramètres doivent être des nombres valides');
+                expect(response.body.erreur).toBe(ERROR_MESSAGES.INVALID_NUMBERS);
             });
 
             test('devrait retourner une erreur 400 pour une valeur non numérique', async () => {
@@ -112,29 +121,29 @@ describe('API Calculatrice', () => {
                     .expect(400);
 
                 expect(response.body).toHaveProperty('erreur');
-                expect(response.body.erreur).toBe('Les paramètres doivent être des nombres valides');
+                expect(response.body.erreur).toBe(ERROR_MESSAGES.INVALID_NUMBERS);
             });
         });
 
         describe('Gestion des valeurs null', () => {
-            test('devrait gérer les valeurs null', async () => {
+            test('devrait gérer une valeur null (nombre1)', async () => {
                 const response = await request(app)
                     .post('/api/addition')
                     .send({ nombre1: null, nombre2: 5 })
                     .expect(400);
 
                 expect(response.body).toHaveProperty('erreur');
-                expect(response.body.erreur).toBe('Les valeurs null ne sont pas acceptées');
+                expect(response.body.erreur).toBe(ERROR_MESSAGES.NULL_VALUES);
             });
 
-            test('devrait gérer les deux valeurs null', async () => {
+            test('devrait gérer deux valeurs null', async () => {
                 const response = await request(app)
                     .post('/api/addition')
                     .send({ nombre1: null, nombre2: null })
                     .expect(400);
 
                 expect(response.body).toHaveProperty('erreur');
-                expect(response.body.erreur).toBe('Les valeurs null ne sont pas acceptées');
+                expect(response.body.erreur).toBe(ERROR_MESSAGES.NULL_VALUES);
             });
         });
 
@@ -146,7 +155,7 @@ describe('API Calculatrice', () => {
                     .expect(400);
 
                 expect(response.body).toHaveProperty('erreur');
-                expect(response.body.erreur).toBe('Corps de requête vide');
+                expect(response.body.erreur).toBe(ERROR_MESSAGES.EMPTY_BODY);
             });
         });
 
@@ -189,7 +198,7 @@ describe('API Calculatrice', () => {
                     .expect(400);
 
                 expect(response.body).toHaveProperty('erreur');
-                expect(response.body.erreur).toBe('Valeur null ou undefined détectée dans le tableau');
+                expect(response.body.erreur).toBe(ERROR_MESSAGES.NULL_IN_ARRAY);
             });
 
             test('devrait retourner une erreur pour additions chaînées avec valeur non numérique', async () => {
@@ -200,7 +209,7 @@ describe('API Calculatrice', () => {
                     .expect(400);
 
                 expect(response.body).toHaveProperty('erreur');
-                expect(response.body.erreur).toBe('Les paramètres doivent être des nombres valides');
+                expect(response.body.erreur).toBe(ERROR_MESSAGES.INVALID_NUMBERS);
             });
         });
     });
