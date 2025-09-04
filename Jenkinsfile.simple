@@ -1,0 +1,82 @@
+pipeline {
+    agent any
+    
+    environment {
+        NODE_ENV = 'test'
+    }
+    
+    stages {
+        stage('🔍 Checkout') {
+            steps {
+                echo 'Récupération du code source...'
+                checkout scm
+            }
+        }
+        
+        stage('📦 Install Dependencies') {
+            steps {
+                echo 'Installation des dépendances Node.js...'
+                sh '''
+                    echo "Versions installées :"
+                    node --version
+                    npm --version
+                    echo ""
+                    echo "Installation des dépendances..."
+                    npm ci
+                '''
+            }
+        }
+        
+        stage('🧪 Run Tests') {
+            steps {
+                echo 'Exécution des tests unitaires...'
+                sh 'npm test'
+            }
+        }
+        
+        stage('📊 Test Coverage') {
+            steps {
+                echo 'Génération du rapport de couverture...'
+                sh 'npm run test:coverage'
+            }
+            post {
+                always {
+                    // Archiver les rapports de couverture
+                    archiveArtifacts artifacts: 'coverage/**/*', allowEmptyArchive: true
+                }
+            }
+        }
+        
+        stage('🚀 Build Application') {
+            steps {
+                echo 'Vérification que l\'application démarre...'
+                sh '''
+                    echo "Test de démarrage de l'application..."
+                    timeout 10s npm start &
+                    PID=$!
+                    sleep 3
+                    if ps -p $PID > /dev/null; then
+                        echo "✅ Application démarre correctement"
+                        kill $PID
+                    else
+                        echo "❌ Erreur au démarrage de l'application"
+                        exit 1
+                    fi
+                '''
+            }
+        }
+    }
+    
+    post {
+        always {
+            echo '🧹 Nettoyage du workspace...'
+            sh 'rm -rf node_modules || true'
+        }
+        success {
+            echo '✅ Pipeline exécuté avec succès !'
+        }
+        failure {
+            echo '❌ Pipeline échoué !'
+        }
+    }
+}
