@@ -4,7 +4,6 @@ pipeline {
     environment {
         // Variables d'environnement
         NODE_ENV = 'test'
-        PATH = "${env.PATH};C:\\Program Files\\nodejs"
     }
     
     stages {
@@ -18,11 +17,11 @@ pipeline {
         stage('📦 Install Dependencies') {
             steps {
                 echo 'Installation des dépendances Node.js...'
-                bat '''
+                sh '''
                     echo "Versions installées :"
                     node --version
                     npm --version
-                    echo.
+                    echo ""
                     echo "Installation des dépendances..."
                     npm ci
                 '''
@@ -32,7 +31,7 @@ pipeline {
         stage('🧪 Run Tests') {
             steps {
                 echo 'Exécution des tests unitaires...'
-                bat 'npm test'
+                sh 'npm test'
             }
             post {
                 always {
@@ -48,7 +47,7 @@ pipeline {
         stage('📊 Test Coverage') {
             steps {
                 echo 'Génération du rapport de couverture...'
-                bat 'npm run test:coverage'
+                sh 'npm run test:coverage'
             }
             post {
                 always {
@@ -86,18 +85,18 @@ pipeline {
         stage('🚀 Build Application') {
             steps {
                 echo 'Construction de l\'application...'
-                bat '''
+                sh '''
                     echo "Vérification que l'application démarre..."
-                    start /B npm start
-                    timeout /T 5
-                    tasklist /FI "IMAGENAME eq node.exe" 2>NUL | find /I "node.exe" >NUL
-                    if %ERRORLEVEL% EQU 0 (
+                    timeout 10s npm start &
+                    PID=$!
+                    sleep 5
+                    if ps -p $PID > /dev/null; then
                         echo "✅ Application démarre correctement"
-                        taskkill /F /IM node.exe >NUL 2>&1
-                    ) else (
+                        kill $PID
+                    else
                         echo "❌ Erreur au démarrage de l'application"
                         exit 1
-                    )
+                    fi
                 '''
             }
         }
@@ -107,7 +106,7 @@ pipeline {
         always {
             echo '🧹 Nettoyage du workspace...'
             // Nettoyer les node_modules pour économiser l'espace
-            bat 'if exist node_modules rmdir /S /Q node_modules'
+            sh 'rm -rf node_modules || true'
         }
         success {
             echo '✅ Pipeline exécuté avec succès !'
