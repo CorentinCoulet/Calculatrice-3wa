@@ -1,6 +1,11 @@
 pipeline {
     agent any
     
+    tools {
+        // Utilise l'installation NodeJS configurée dans Jenkins
+        nodejs 'NodeJS-18'
+    }
+    
     environment {
         // Variables d'environnement
         NODE_VERSION = '18'
@@ -21,8 +26,12 @@ pipeline {
                 echo 'Installation des dépendances Node.js...'
                 script {
                     if (isUnix()) {
+                        sh 'node --version'
+                        sh 'npm --version'
                         sh 'npm ci'
                     } else {
+                        bat 'node --version'
+                        bat 'npm --version'
                         bat 'npm ci'
                     }
                 }
@@ -33,7 +42,6 @@ pipeline {
             steps {
                 echo 'Vérification de la qualité du code...'
                 script {
-                    // Ajouter ici vos outils de linting si vous en avez
                     echo 'Étape de linting à configurer'
                 }
             }
@@ -53,7 +61,13 @@ pipeline {
             post {
                 always {
                     // Publier les résultats des tests JUnit
-                    publishTestResults testResultsPattern: 'test-results/junit.xml'
+                    script {
+                        if (fileExists('test-results/junit.xml')) {
+                            publishTestResults testResultsPattern: 'test-results/junit.xml'
+                        } else {
+                            echo 'Aucun fichier de résultats de tests trouvé'
+                        }
+                    }
                     
                     // Archiver les rapports de tests
                     archiveArtifacts artifacts: 'test-results/**/*', allowEmptyArchive: true
@@ -75,19 +89,43 @@ pipeline {
             post {
                 always {
                     // Publier le rapport de couverture
-                    publishHTML([
-                        allowMissing: false,
-                        alwaysLinkToLastBuild: true,
-                        keepAll: true,
-                        reportDir: 'coverage/lcov-report',
-                        reportFiles: 'index.html',
-                        reportName: 'Coverage Report'
-                    ])
+                    script {
+                        if (fileExists('coverage/lcov-report/index.html')) {
+                            publishHTML([
+                                allowMissing: false,
+                                alwaysLinkToLastBuild: true,
+                                keepAll: true,
+                                reportDir: 'coverage/lcov-report',
+                                reportFiles: 'index.html',
+                                reportName: 'Coverage Report'
+                            ])
+                        } else {
+                            echo 'Aucun rapport de couverture trouvé'
+                        }
+                    }
                 }
             }
         }
         
         stage('Build Docker Image') {
+            when {
+                // Seulement si Docker est disponible
+                expression { 
+                    script {
+                        try {
+                            if (isUnix()) {
+                                sh 'which docker'
+                            } else {
+                                bat 'where docker'
+                            }
+                            return true
+                        } catch (Exception e) {
+                            echo "Docker non disponible, étape ignorée"
+                            return false
+                        }
+                    }
+                }
+            }
             steps {
                 echo 'Construction de l\'image Docker...'
                 script {
@@ -110,7 +148,6 @@ pipeline {
             steps {
                 echo 'Analyse de sécurité...'
                 script {
-                    // Ajouter ici vos outils de scan de sécurité
                     echo 'Étape de scan de sécurité à configurer'
                 }
             }
@@ -166,11 +203,15 @@ pipeline {
         always {
             echo 'Nettoyage...'
             script {
-                // Nettoyer les images Docker non utilisées
-                if (isUnix()) {
-                    sh 'docker system prune -f'
-                } else {
-                    bat 'docker system prune -f'
+                // Nettoyage Docker seulement si Docker est disponible
+                try {
+                    if (isUnix()) {
+                        sh 'docker --version && docker system prune -f || echo "Docker non disponible, skip nettoyage"'
+                    } else {
+                        bat 'docker --version && docker system prune -f || echo "Docker non disponible, skip nettoyage"'
+                    }
+                } catch (Exception e) {
+                    echo "Docker non disponible pour le nettoyage: ${e.getMessage()}"
                 }
             }
         }
