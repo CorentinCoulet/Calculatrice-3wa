@@ -1,11 +1,6 @@
 pipeline {
     agent any
     
-    tools {
-        // Utilise l'installation NodeJS configurée dans Jenkins
-        nodejs 'NodeJS-18'
-    }
-    
     environment {
         // Variables d'environnement
         NODE_VERSION = '18'
@@ -26,12 +21,25 @@ pipeline {
                 echo 'Installation des dépendances Node.js...'
                 script {
                     if (isUnix()) {
-                        sh 'node --version'
-                        sh 'npm --version'
+                        // Vérifier si Node.js est disponible
+                        sh '''
+                            if command -v node >/dev/null 2>&1; then
+                                echo "Node.js est déjà installé"
+                                node --version
+                                npm --version
+                            else
+                                echo "Installation de Node.js via package manager"
+                                curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+                                sudo apt-get install -y nodejs
+                            fi
+                        '''
                         sh 'npm ci'
                     } else {
-                        bat 'node --version'
-                        bat 'npm --version'
+                        bat '''
+                            echo "Vérification de Node.js..."
+                            node --version || echo "Node.js n'est pas installé"
+                            npm --version || echo "npm n'est pas installé"
+                        '''
                         bat 'npm ci'
                     }
                 }
